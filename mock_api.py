@@ -37,7 +37,6 @@ class RequestData(BaseModel):
     max_ntx: int
     blockchain: str
     service_type: str
-    machine_type: str
     params: Params
     constraints: Constraints
 
@@ -162,17 +161,20 @@ async def websocket_endpoint(websocket: WebSocket):
     in the following sequence:
 
     1. Immediately after the connection is established, it sends a "connected to mock DMS" message.
-    - wait for status from the webapp {
+    2. Waits for status from the webapp {
                       message: {
                         transaction_status: 'success',
                         transaction_type: 'fund'
                         },
                       action: 'send-status'
                     }
-    2. After a 10-second delay, it sends a "job-submitted" message.
-    5. Finally, after a 15-second delay, it sends a "deployment-response" message with a success flag and a Gist URL.
-    3. After another 10-second delay, it sends a "job-is running" message.
-    4. It then sends 10 "stream response" messages, one every 3 seconds, containing demo stream logs.
+    3. If transaction_status is 'success':
+        - After a 10-second delay, it sends a "job-submitted" message.
+        - After another 10-second delay, it sends a "deployment-response" message with a success flag and a Gist URL.
+        - After another 10-second delay, it sends a "job-is running" message.
+        - It then sends 10 "stream response" messages, one every 3 seconds, containing demo stream logs.
+    4. If transaction_status is 'error':
+        - Sends a "deployment-response" message with a success flag set to False and a Gist URL.
 
     Args:
         websocket (WebSocket): The WebSocket instance for the connection.
@@ -182,19 +184,29 @@ async def websocket_endpoint(websocket: WebSocket):
     """
     await websocket.accept()
     await websocket.send_json({"action": "connected to mock DMS"})
-    await asyncio.sleep(10)
-    await websocket.send_json({"action": "job-submitted"})
-    await asyncio.sleep(10)
-    await websocket.send_json({
-        "action": "deployment-response",
-        "message": {"success": True, "content": "https://gist.github.com/user/:gistId"}
-    })
 
+    webapp_response = await websocket.receive_json()
+    transaction_status = webapp_response.get("message", {}).get("transaction_status")
 
-    for i in range(1, 11):
-        await asyncio.sleep(3)
-        await websocket.send_json({"action": "demo_stream_response", "message": f"Demo stream log {i}"})
-
+    if transaction_status == "success":
+        await asyncio.sleep(10)
+        await websocket.send_json({"action": "job-submitted"})
+        await asyncio.sleep(10)
+        await websocket.send_json({
+            "action": "deployment-response",
+            "message": {"success": True, "content": "https://gist.github.com/user/:gistId"}
+        })
+        await asyncio.sleep(10)
+        for i in range(1, 11):
+            await asyncio.sleep(3)
+            await websocket.send_json({"action": "demo_stream_response", "message": f"Demo stream log {i}"})
+        
+        await websocket.send_json({"action": "job_completed"})
+    elif transaction_status == "error":
+        await websocket.send_json({
+            "action": "deployment-response",
+            "message": {"success": False, "content": "https://gist.github.com/user/:gistId"}
+        })
         
 @app.post(
     "/api/v1/run/request-reward",
