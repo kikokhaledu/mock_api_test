@@ -3,7 +3,8 @@ from pydantic import BaseModel
 from typing import Optional,List, Dict, Any
 import uvicorn
 from fastapi.responses import JSONResponse
-
+import asyncio
+from fastapi import WebSocket
 
 app = FastAPI()
 
@@ -111,6 +112,42 @@ async def request_service(request_data: RequestData):
         print("Invalid choice. Please try again.")
         return await request_service(request_data)
 
+@app.websocket("/send-status")
+async def websocket_endpoint(websocket: WebSocket):
+    """
+    WebSocket endpoint for streaming status updates of a mock job.
+
+    This function sends a series of status updates to the connected client
+    in the following sequence:
+
+    1. Immediately after the connection is established, it sends a "connected to mock DMS" message.
+    2. After a 10-second delay, it sends a "job-submitted" message.
+    3. After another 10-second delay, it sends a "job-is running" message.
+    4. It then sends 10 "stream response" messages, one every 3 seconds, containing demo stream logs.
+    5. Finally, after a 15-second delay, it sends a "deployment-response" message with a success flag and a Gist URL.
+
+    Args:
+        websocket (WebSocket): The WebSocket instance for the connection.
+
+    Returns:
+        None
+    """
+    await websocket.accept()
+    await websocket.send_json({"action": "connected to mock DMS"})
+    await asyncio.sleep(10)
+    await websocket.send_json({"action": "job-submitted"})
+    await asyncio.sleep(10)
+    await websocket.send_json({"action": "job-is running"})
+
+    for i in range(1, 11):
+        await asyncio.sleep(3)
+        await websocket.send_json({"action": "demo_stream_response", "message": f"Demo stream log {i}"})
+
+    await asyncio.sleep(15)
+    await websocket.send_json({
+        "action": "deployment-response",
+        "message": {"success": True, "content": "https://gist.github.com/user/:gistId"}
+    })
 
     
     
