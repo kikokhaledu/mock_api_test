@@ -23,7 +23,7 @@ python mock_api.py
 
 ## Usage
 
-When you send a POST request to the `/request-service` endpoint, you'll be prompted in the console to choose the response type (success, no peers error, or oracle issue error). The response will include a status code and a JSON object based on your choice.
+When you send a POST request to the `/request-service` endpoint, the incoming data is validated against the defined Pydantic models to ensure it matches the expected format. If the incoming data is valid, you'll be prompted in the console to choose the response type (success, no peers error, or oracle issue error). The response will include a status code and a JSON object based on your choice. If the incoming POST data does not match the expected format, the function will return a 422 Unprocessable Entity status code, along with a JSON object containing detailed error messages for each invalid field.
 
 - Success: Returns status code 200 and a JSON object containing compute provider address, estimated price, signature, and oracle message.
 - No peers error: Returns status code 404 and a JSON object containing an error message.
