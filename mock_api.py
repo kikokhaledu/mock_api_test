@@ -39,14 +39,32 @@ class RequestServiceData(BaseModel):
 class ErrorResponse(BaseModel):
     error: str
 
+
+class RewardData(BaseModel):
+    signature: str
+    oracle_message: str
+    reward_type: str
+
+class RewardErrorResponse(BaseModel):
+    error: str
+
+class MessageResponse(BaseModel):
+    message: str
+
+
 @app.post(
-    "/request-service",
+    "/api/v1/run/request-service",
     response_model=Optional[RequestServiceData],
-    responses={404: {"model": ErrorResponse}, 503: {"model": ErrorResponse}},
+    responses={
+        400: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
+    },
 )
 async def request_service(request_data: RequestData):
     """
-    Handle the POST request to /request-service, simulating a mock API for testing.
+    Handle the POST request to /run/request-service, simulating a mock API for testing.
 
     This function receives the incoming POST data in the form of a RequestData object,
     which contains the address_user, max_ntx, blockchain, service_type, machine_type,
@@ -54,12 +72,17 @@ async def request_service(request_data: RequestData):
     models, ensuring that the POST data matches the expected format.
 
     Upon receiving the request data, the function prompts the user to choose one of
-    three response types:
+    eight response types:
 
     1. Success
-    2. No peers error
-    3. Oracle issue error
-    
+    2. Error - JSON: cannot unmarshal object into Go
+    3. Error - Unable to obtain public key
+    4. Error - Nunet estimation price is greater than client price
+    5. Error - No peers found with matched specs
+    6. Error - Cannot connect to oracle
+    7. Error - A service is already running; only 1 service is supported at the moment
+    8. Error - Cannot write to database
+
     Depending on the chosen response type, the function will return an HTTP response
     with the appropriate status code and JSON data. If the incoming POST data does not
     match the expected format, the function will return a 422 Unprocessable Entity status
@@ -74,7 +97,7 @@ async def request_service(request_data: RequestData):
 
     Returns:
     JSONResponse: A JSON response with the appropriate status code and JSON data.
-    """  
+    """
     def success_response():
         return {
             "compute_provider_addr": "0x0541422b9e05e9f0c0c9b393313279aada6eabb2",
@@ -83,16 +106,18 @@ async def request_service(request_data: RequestData):
             "oracle_message": "funding-582043e57f3ae217de5d9404ed07a7658de6c3b2444e533ce1ee2ff94ac5a4941848",
         }
 
-    def no_peers_error():
-        return JSONResponse(status_code=status.HTTP_404_NOT_FOUND, content={"error": "no peers"})
-
-    def oracle_issue_error():
-        return JSONResponse(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, content={"error": "oracle issue"})
+    def error_response(status_code, error_message):
+        return JSONResponse(status_code=status_code, content={"error": error_message})
 
     choice_map = {
         "1": success_response,
-        "2": no_peers_error,
-        "3": oracle_issue_error,
+        "2": lambda: error_response(status.HTTP_400_BAD_REQUEST, "json: cannot unmarshal object into Go"),
+        "3": lambda: error_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "unable to obtain public key"),
+        "4": lambda: error_response(status.HTTP_400_BAD_REQUEST, "nunet estimation price is greater than client price"),
+        "5": lambda: error_response(status.HTTP_404_NOT_FOUND, "no peers found with matched specs"),
+        "6": lambda: error_response(status.HTTP_503_SERVICE_UNAVAILABLE, "cannot connect to oracle"),
+        "7": lambda: error_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "a service is already running; only 1 service is supported at the moment"),
+        "8": lambda: error_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "cannot write to database"),
     }
 
     print("\nReceived request data:")
@@ -100,8 +125,13 @@ async def request_service(request_data: RequestData):
     print("\n" + "-" * 50 + "\n")  #separator
     print("\nChoose response type:")
     print("1. Success")
-    print("2. No peers error")
-    print("3. Oracle issue error")
+    print("2. Error - JSON: cannot unmarshal object into Go")
+    print("3. Error - Unable to obtain public key")
+    print("4. Error - Nunet estimation price is greater than client price")
+    print("5. Error - No peers found with matched specs")
+    print("6. Error - Cannot connect to oracle")
+    print("7. Error - A service is already running; only 1 service is supported at the moment")
+    print("8. Error - Cannot write to database")
     choice = input("Enter the number corresponding to your choice: ")
 
     response_func = choice_map.get(choice)
@@ -112,7 +142,7 @@ async def request_service(request_data: RequestData):
         print("Invalid choice. Please try again.")
         return await request_service(request_data)
 
-@app.websocket("/send-status")
+@app.websocket("/api/v1/run/deploy")
 async def websocket_endpoint(websocket: WebSocket):
     """
     WebSocket endpoint for streaming status updates of a mock job.
@@ -148,6 +178,122 @@ async def websocket_endpoint(websocket: WebSocket):
         "action": "deployment-response",
         "message": {"success": True, "content": "https://gist.github.com/user/:gistId"}
     })
+
+@app.post(
+    "/api/v1/run/request-reward",
+    responses={
+        409: {"model": ErrorResponse},
+        404: {"model": ErrorResponse},
+        500: {"model": ErrorResponse},
+    },
+)
+async def request_reward():
+    """
+    Handler function for POST requests to '/request-reward' endpoint.
+    Displays a menu of response types and returns a JSON response based on the user's choice.
+
+    Returns:
+        A JSON response with a signature, oracle_message, and reward_type for a chosen response type.
+        If an invalid choice is made, it recursively calls itself until a valid choice is made.
+        The response also includes a status code depending on the chosen response type:
+        - 200 for successful withdrawal or refund.
+        - 500 for an error in connecting to the oracle.
+        - 409 for when the job is still running.
+        - 404 for when there is no job deployed to request reward for.
+    """
+    responses = {
+        "1": {
+            "status": status.HTTP_200_OK,
+            "content": {
+                "signature": "25a3e1fa95152a0b936999299c62627006fb9d8fda9233e6b78d88cd206a9ea86316cac7729fd356da65812a61f6b3dd4152eb239aaa7a59bbf9a5702ee33209",
+                "oracle_message": "withdraw-5820acefd2fd95c34f5a19fb8a304e918533fed977c8cc2d88fc322b7c921c0c172c",
+                "reward_type": "withdraw",
+            },
+        },
+        "2": {
+            "status": status.HTTP_200_OK,
+            "content": {
+                "signature": "990a4b1f5eac4a2cefbea95e4678fc2c4f097330942cefc18e5cb9dde42bee7ef0dd085550552d35a99abff1daf4eedea80fc6400e98c74f408928fbb2ea5c01",
+                "oracle_message": "withdraw-582095ebcd78b9458e54746f0e2c44bc88d0959a3cdb45143e3ff9571cd527fa0375",
+                "reward_type": "refund",
+            },
+        },
+        "3": {
+            "status": status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "content": {"error": "connection to oracle failed"},
+        },
+        "4": {
+            "status": status.HTTP_409_CONFLICT,
+            "content": {"error": "the job is still running"},
+        },
+        "5": {
+            "status": status.HTTP_404_NOT_FOUND,
+            "content": {"error": "no job deployed to request reward for"},
+        },
+    }
+
+    print("\nChoose response type:")
+    print("1. Withdraw")
+    print("2. Refund")
+    print("3. Error - Connection to oracle failed")
+    print("4. Error - The job is still running")
+    print("5. Error - No job deployed to request reward for")
+    choice = input("Enter the number corresponding to your choice: ")
+
+    if choice in responses:
+        response = responses[choice]
+        return JSONResponse(status_code=response["status"], content=response["content"])
+    else:
+        print("Invalid choice. Please try again.")
+        return await request_reward()
+
+@app.post(
+    "/api/v1/run/send-status",
+    response_model=Optional[Dict[str, str]],
+    responses={200: {"model": MessageResponse}, 400: {"model": ErrorResponse}},
+)
+async def send_status():
+    """
+    Handle the POST request to /api/v1/run/send-status, simulating a mock API for testing.
+
+    This function prompts the user to choose one of two response types:
+
+    1. Success
+    2. Error - Cannot read payload body
+
+    Depending on the chosen response type, the function will return an HTTP response
+    with the appropriate status code and JSON data.
+
+    Args:
+    None
+
+    Returns:
+    JSONResponse: A JSON response with the appropriate status code and JSON data.
+    """
+
+    def success_response():
+        return {"message": "transaction status demo transaction acknowledged"}
+
+    def error_response():
+        return JSONResponse(status_code=status.HTTP_400_BAD_REQUEST, content={"error": "cannot read payload body"})
+
+    choice_map = {
+        "1": success_response,
+        "2": error_response,
+    }
+
+    print("\nChoose response type:")
+    print("1. Success")
+    print("2. Error - Cannot read payload body")
+    choice = input("Enter the number corresponding to your choice: ")
+
+    response_func = choice_map.get(choice)
+
+    if response_func:
+        return response_func()
+    else:
+        print("Invalid choice. Please try again.")
+        return await send_status()
 
     
     

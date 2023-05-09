@@ -1,0 +1,24 @@
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pyc
+
+# Virtual environment folder
+venv/
+
+# Other common files
+.DS_Store
+*.log
+*.tmp
+*.swp
+*.bak
+*.db
+*.sqlite3
+
+# Editor specific files
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
