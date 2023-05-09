@@ -182,7 +182,7 @@ async def websocket_endpoint(websocket: WebSocket):
 @app.post(
     "/api/v1/run/request-reward",
     responses={
-        409: {"model": ErrorResponse},
+        503: {"model": ErrorResponse},
         404: {"model": ErrorResponse},
         500: {"model": ErrorResponse},
     },
@@ -198,7 +198,7 @@ async def request_reward():
         The response also includes a status code depending on the chosen response type:
         - 200 for successful withdrawal or refund.
         - 500 for an error in connecting to the oracle.
-        - 409 for when the job is still running.
+        - 503 for when the job is still running.
         - 404 for when there is no job deployed to request reward for.
     """
     responses = {
@@ -223,7 +223,7 @@ async def request_reward():
             "content": {"error": "connection to oracle failed"},
         },
         "4": {
-            "status": status.HTTP_409_CONFLICT,
+            "status": status.HTTP_503_SERVICE_UNAVAILABLE,
             "content": {"error": "the job is still running"},
         },
         "5": {

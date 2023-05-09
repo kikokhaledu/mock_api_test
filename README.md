@@ -11,10 +11,7 @@ To set up and run the mock API, follow these steps:
 ```bash
 pip install -r requirements.txt
 ```
-
-2. Create a new Python file (e.g., `mock_api.py`) and paste the provided code.
-
-3. Run the server:
+2. Run the server:
 
 ```bash 
 python mock_api.py
