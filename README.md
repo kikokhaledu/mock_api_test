@@ -23,9 +23,9 @@ The `/api/v1/run/deploy` WebSocket endpoint sends a series of status updates to 
 
 1. Immediately after the connection is established, it sends a "connected to mock DMS" message.
 2. After a 10-second delay, it sends a "job-submitted" message.
-3. After another 10-second delay, it sends a "job-is running" message.
+3. After another 10-second delay, it sends a "deployment-response" message with a success flag and a Gist URL.
 4. It then sends 10 "stream response" messages, one every 3 seconds, containing demo stream logs.
-5. Finally, after a 15-second delay, it sends a "deployment-response" message with a success flag and a Gist URL.
+
 
 ### POST /api/v1/run/request-reward
 

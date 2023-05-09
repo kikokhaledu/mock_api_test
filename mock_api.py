@@ -167,18 +167,17 @@ async def websocket_endpoint(websocket: WebSocket):
     await asyncio.sleep(10)
     await websocket.send_json({"action": "job-submitted"})
     await asyncio.sleep(10)
-    await websocket.send_json({"action": "job-is running"})
-
-    for i in range(1, 11):
-        await asyncio.sleep(3)
-        await websocket.send_json({"action": "demo_stream_response", "message": f"Demo stream log {i}"})
-
-    await asyncio.sleep(15)
     await websocket.send_json({
         "action": "deployment-response",
         "message": {"success": True, "content": "https://gist.github.com/user/:gistId"}
     })
 
+
+    for i in range(1, 11):
+        await asyncio.sleep(3)
+        await websocket.send_json({"action": "demo_stream_response", "message": f"Demo stream log {i}"})
+
+        
 @app.post(
     "/api/v1/run/request-reward",
     responses={
