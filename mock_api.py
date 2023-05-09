@@ -5,8 +5,19 @@ import uvicorn
 from fastapi.responses import JSONResponse
 import asyncio
 from fastapi import WebSocket
+from fastapi.middleware.cors import CORSMiddleware
+
 
 app = FastAPI()
+origins = ["*"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class Params(BaseModel):
     image_id: str
@@ -151,10 +162,17 @@ async def websocket_endpoint(websocket: WebSocket):
     in the following sequence:
 
     1. Immediately after the connection is established, it sends a "connected to mock DMS" message.
+    - wait for status from the webapp {
+                      message: {
+                        transaction_status: 'success',
+                        transaction_type: 'fund'
+                        },
+                      action: 'send-status'
+                    }
     2. After a 10-second delay, it sends a "job-submitted" message.
+    5. Finally, after a 15-second delay, it sends a "deployment-response" message with a success flag and a Gist URL.
     3. After another 10-second delay, it sends a "job-is running" message.
     4. It then sends 10 "stream response" messages, one every 3 seconds, containing demo stream logs.
-    5. Finally, after a 15-second delay, it sends a "deployment-response" message with a success flag and a Gist URL.
 
     Args:
         websocket (WebSocket): The WebSocket instance for the connection.
