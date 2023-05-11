@@ -124,7 +124,7 @@ async def request_service(request_data: RequestData):
         return response_data
 
     def error_response(status_code, error_message):
-        return JSONResponse(status_code=status_code, content={"error": error_message})
+        return JSONResponse(status_code=status_code, content={"deployment-error": error_message})
 
     choice_map = {
         "1": success_response,
@@ -203,23 +203,21 @@ async def websocket_endpoint(websocket: WebSocket):
 
     webapp_response = await websocket.receive_json()
     transaction_status = webapp_response.get("message", {}).get("transaction_status")
-    print('----------------------------------------')
-    print(transaction_status)
-    print('----------------------------------------')
     if transaction_status == "success":
         await asyncio.sleep(10)
         await websocket.send_json({"action": "job-submitted"})
         await asyncio.sleep(10)
         await websocket.send_json({
             "action": "deployment-response",
+            "info": "containeridxxxxxx",
             "message": {"success": True, "content": "https://gist.github.com/user/:gistId"}
         })
         await asyncio.sleep(10)
         for i in range(1, 11):
             await asyncio.sleep(3)
-            await websocket.send_json({"action": "demo_stream_response", "message": f"Demo stream log {i}"})
+            await websocket.send_json({"action": "log-stream-response", "stdout": f"Demo stream log {i}"})
 
-        await websocket.send_json({"action": "job_completed"})
+        await websocket.send_json({"action": "job-completed"})
 
     elif transaction_status == "error":
         await websocket.send_json({
@@ -238,10 +236,11 @@ async def websocket_endpoint(websocket: WebSocket):
         await asyncio.sleep(10)
         for i in range(1, 3):
             await asyncio.sleep(3)
-            await websocket.send_json({"action": "demo_stream_response", "message": f"Demo stream log {i}"})
-
-        await websocket.send_json({"action": "error", "message": "this is a demo error message with error code demo301x"})
-
+            await websocket.send_json({"action": "log-stream-response", "stdout": f"Demo stream log {i}"})
+        await asyncio.sleep(2)
+        await websocket.send_json({"action": "log-stream-response", "stderr": "this is a demo error message with error code demo301x"})
+        await asyncio.sleep(2)
+        await websocket.send_json({"action": "job-failed"})
         
 @app.post(
     "/api/v1/run/request-reward",

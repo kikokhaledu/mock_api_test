@@ -16,14 +16,13 @@ pip install -r requirements.txt
 ```bash 
 python mock_api.py
 ```
-
 ### WebSocket Endpoint
 
 The `/api/v1/run/deploy` WebSocket endpoint sends a series of status updates to the connected client based on the received transaction status:
 
 1. Immediately after the connection is established, it sends a "connected to mock DMS" message.
 2. Waits for status from the web app:
-    ```
+    ```json
     {
         "message": {
             "transaction_status": "success",
@@ -32,15 +31,15 @@ The `/api/v1/run/deploy` WebSocket endpoint sends a series of status updates to 
         "action": "send-status"
     }
     ```
-3. If transaction_status is 'success':
+3. If the `transaction_status` is 'success':
     - After a 10-second delay, it sends a "job-submitted" message.
     - After another 10-second delay, it sends a "deployment-response" message with a success flag and a Gist URL.
     - After another 10-second delay, it sends a "job-is running" message.
     - It then sends 10 "stream response" messages, one every 3 seconds, containing demo stream logs.
     - After all logs have been sent, it sends a "job_completed" message.
-4. If transaction_status is 'error':
+4. If the `transaction_status` is 'error':
     - Sends a "deployment-response" message with a success flag set to False and a Gist URL.
-5. If transaction_status is 'success_with_error':
+5. If the `transaction_status` is 'success_with_error':
     - After a 10-second delay, it sends a "job-submitted" message.
     - After another 10-second delay, it sends a "deployment-response" message with a success flag and a Gist URL.
     - After another 10-second delay, it sends a "job-is running" message.
