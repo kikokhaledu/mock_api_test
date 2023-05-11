@@ -82,7 +82,7 @@ async def request_service(request_data: RequestData):
     models, ensuring that the POST data matches the expected format.
 
     Upon receiving the request data, the function prompts the user to choose one of
-    eight response types:
+    nine response types:
 
     1. Success
     2. Error - JSON: cannot unmarshal object into Go
@@ -92,6 +92,7 @@ async def request_service(request_data: RequestData):
     6. Error - Cannot connect to oracle
     7. Error - A service is already running; only 1 service is supported at the moment
     8. Error - Cannot write to database
+    9. Success with error
 
     Depending on the chosen response type, the function will return an HTTP response
     with the appropriate status code and JSON data. If the incoming POST data does not
@@ -114,7 +115,13 @@ async def request_service(request_data: RequestData):
             "estimated_price": 0.027280000000000002,
             "signature": "36f68dff290d978d132ef7742ee94c559852207e9b7d4640aef5c92548b57e8cd41776cb84d456e19da7b6f21094015953088437010bef16957f42d905dc350e",
             "oracle_message": "funding-582043e57f3ae217de5d9404ed07a7658de6c3b2444e533ce1ee2ff94ac5a4941848",
+            "transaction_status": "success",
         }
+
+    def success_with_error_response():
+        response_data = success_response()
+        response_data["transaction_status"] = "success_with_error"
+        return response_data
 
     def error_response(status_code, error_message):
         return JSONResponse(status_code=status_code, content={"error": error_message})
@@ -128,11 +135,12 @@ async def request_service(request_data: RequestData):
         "6": lambda: error_response(status.HTTP_503_SERVICE_UNAVAILABLE, "cannot connect to oracle"),
         "7": lambda: error_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "a service is already running; only 1 service is supported at the moment"),
         "8": lambda: error_response(status.HTTP_500_INTERNAL_SERVER_ERROR, "cannot write to database"),
+        "9": success_with_error_response,
     }
 
     print("\nReceived request data:")
     print(request_data)
-    print("\n" + "-" * 50 + "\n")  #separator
+    print("\n" + "-" * 50 + "\n")
     print("\nChoose response type:")
     print("1. Success")
     print("2. Error - JSON: cannot unmarshal object into Go")
@@ -142,6 +150,7 @@ async def request_service(request_data: RequestData):
     print("6. Error - Cannot connect to oracle")
     print("7. Error - A service is already running; only 1 service is supported at the moment")
     print("8. Error - Cannot write to database")
+    print("9. Success with error")
     choice = input("Enter the number corresponding to your choice: ")
 
     response_func = choice_map.get(choice)
@@ -151,6 +160,7 @@ async def request_service(request_data: RequestData):
     else:
         print("Invalid choice. Please try again.")
         return await request_service(request_data)
+
 
 @app.websocket("/api/v1/run/deploy")
 async def websocket_endpoint(websocket: WebSocket):
@@ -175,6 +185,12 @@ async def websocket_endpoint(websocket: WebSocket):
         - It then sends 10 "stream response" messages, one every 3 seconds, containing demo stream logs.
     4. If transaction_status is 'error':
         - Sends a "deployment-response" message with a success flag set to False and a Gist URL.
+    5. If transaction_status is 'success_with_error':
+        - After a 10-second delay, it sends a "job-submitted" message.
+        - After another 10-second delay, it sends a "deployment-response" message with a success flag and a Gist URL.
+        - After another 10-second delay, it sends a "job-is running" message.
+        - It then sends 2 "stream response" messages, one every 3 seconds, containing demo stream logs.
+        - Sends an "error" message with the content {"action": "error", "message": "this is a demo error message with error code demo301x"}
 
     Args:
         websocket (WebSocket): The WebSocket instance for the connection.
@@ -187,7 +203,9 @@ async def websocket_endpoint(websocket: WebSocket):
 
     webapp_response = await websocket.receive_json()
     transaction_status = webapp_response.get("message", {}).get("transaction_status")
-
+    print('----------------------------------------')
+    print(transaction_status)
+    print('----------------------------------------')
     if transaction_status == "success":
         await asyncio.sleep(10)
         await websocket.send_json({"action": "job-submitted"})
@@ -200,13 +218,30 @@ async def websocket_endpoint(websocket: WebSocket):
         for i in range(1, 11):
             await asyncio.sleep(3)
             await websocket.send_json({"action": "demo_stream_response", "message": f"Demo stream log {i}"})
-        
+
         await websocket.send_json({"action": "job_completed"})
+
     elif transaction_status == "error":
         await websocket.send_json({
             "action": "deployment-response",
             "message": {"success": False, "content": "https://gist.github.com/user/:gistId"}
         })
+
+    elif transaction_status == "success_with_error":
+        await asyncio.sleep(10)
+        await websocket.send_json({"action": "job-submitted"})
+        await asyncio.sleep(10)
+        await websocket.send_json({
+            "action": "deployment-response",
+            "message": {"success": True, "content": "https://gist.github.com/user/:gistId"}
+        })
+        await asyncio.sleep(10)
+        for i in range(1, 3):
+            await asyncio.sleep(3)
+            await websocket.send_json({"action": "demo_stream_response", "message": f"Demo stream log {i}"})
+
+        await websocket.send_json({"action": "error", "message": "this is a demo error message with error code demo301x"})
+
         
 @app.post(
     "/api/v1/run/request-reward",

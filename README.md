@@ -19,12 +19,35 @@ python mock_api.py
 
 ### WebSocket Endpoint
 
-The `/api/v1/run/deploy` WebSocket endpoint sends a series of status updates to the connected client:
+The `/api/v1/run/deploy` WebSocket endpoint sends a series of status updates to the connected client based on the received transaction status:
 
 1. Immediately after the connection is established, it sends a "connected to mock DMS" message.
-2. After a 10-second delay, it sends a "job-submitted" message.
-3. After another 10-second delay, it sends a "deployment-response" message with a success flag and a Gist URL.
-4. It then sends 10 "stream response" messages, one every 3 seconds, containing demo stream logs.
+2. Waits for status from the web app:
+    ```
+    {
+        "message": {
+            "transaction_status": "success",
+            "transaction_type": "fund"
+        },
+        "action": "send-status"
+    }
+    ```
+3. If transaction_status is 'success':
+    - After a 10-second delay, it sends a "job-submitted" message.
+    - After another 10-second delay, it sends a "deployment-response" message with a success flag and a Gist URL.
+    - After another 10-second delay, it sends a "job-is running" message.
+    - It then sends 10 "stream response" messages, one every 3 seconds, containing demo stream logs.
+    - After all logs have been sent, it sends a "job_completed" message.
+4. If transaction_status is 'error':
+    - Sends a "deployment-response" message with a success flag set to False and a Gist URL.
+5. If transaction_status is 'success_with_error':
+    - After a 10-second delay, it sends a "job-submitted" message.
+    - After another 10-second delay, it sends a "deployment-response" message with a success flag and a Gist URL.
+    - After another 10-second delay, it sends a "job-is running" message.
+    - It then sends 2 "stream response" messages, one every 3 seconds, containing demo stream logs.
+    - Sends an "error" message with the content `{"action": "error", "message": "this is a demo error message with error code demo301x"}`
+
+
 
 
 ### POST /api/v1/run/request-reward
@@ -44,6 +67,7 @@ This POST endpoint simulates the process of requesting a reward. When a POST req
 When you send a POST request to the `/run/request-service` endpoint, the incoming data is validated against the defined Pydantic models to ensure it matches the expected format. If the incoming data is valid, you'll be prompted in the console to choose the response type among the following options:
 
 - Success
+- Success with error
 - Error - JSON: cannot unmarshal object into Go
 - Error - Unable to obtain public key
 - Error - Nunet estimation price is greater than client price
@@ -55,7 +79,9 @@ When you send a POST request to the `/run/request-service` endpoint, the incomin
 The response will include a status code and a JSON object based on your choice. If the incoming POST data does not match the expected format, the function will return a 422 Unprocessable Entity status code, along with a JSON object containing detailed error messages for each invalid field.
 
 - Success: Returns status code 200 and a JSON object containing compute provider address, estimated price, signature, and oracle message.
+- Success with error: Returns status code 200 and a JSON object containing compute provider address, estimated price, signature, and oracle message. The WebSocket endpoint will send two logs before returning an error message.
 - Error responses: Returns an appropriate status code (400, 404, 500, or 503) and a JSON object containing an error message.
+
 
 
 
